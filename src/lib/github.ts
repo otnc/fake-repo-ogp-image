@@ -105,27 +105,20 @@ export async function importRepo(input: string): Promise<Partial<RepoData>> {
   };
 }
 
-// open の Issue / PR 件数を GitHub HTML から取得 (API クォータ不使用)。
-// github.com のページに server-side render される tab カウンターを読む。
-// 失敗時は Search API にフォールバック。
+// open の Issue / PR 件数を取得。
+// ブラウザから github.com を直接 fetch すると CORS ブロックされるため、
+// サーバーサイドプロキシ (/api/proxy/gh-counts) 経由でスクレイピング。
+// 失敗時は GitHub Search API (別クォータ 10 req/min) にフォールバック。
 async function fetchIssuePrCounts(
   owner: string,
   repo: string,
 ): Promise<{ issues: number | null; pullRequests: number | null }> {
   try {
-    const res = await fetch(`https://github.com/${owner}/${repo}`, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      signal: AbortSignal.timeout(5000),
-    });
+    const url = `/api/proxy/gh-counts?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (res.ok) {
-      const html = await res.text();
-      const parseTabCount = (id: string): number | null => {
-        const m = new RegExp(`id="${id}"[^>]*title="([\\d,]+)"`).exec(html);
-        return m ? parseInt(m[1].replace(/,/g, ""), 10) : null;
-      };
-      const issues = parseTabCount("issues-repo-tab-count");
-      const pullRequests = parseTabCount("pull-requests-repo-tab-count");
-      if (issues !== null || pullRequests !== null) return { issues, pullRequests };
+      const data = await res.json();
+      if (data.issues !== null || data.pullRequests !== null) return data;
     }
   } catch {
     // フォールバックへ

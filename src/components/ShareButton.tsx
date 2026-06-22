@@ -19,10 +19,14 @@ export default function ShareButton({ data }: { data: RepoData }) {
 
     if (data.useGithubAvatar && data.owner) {
       // GitHub アバターを data URL に変換して埋め込む。
-      // こうすることで /api/og が runtime に GitHub へ fetch する必要がなくなり rate limit を回避できる。
+      // ブラウザから github.com を直接 fetch すると CORS でブロックされるため、
+      // サーバーサイドプロキシ (/api/proxy/gh-avatar) 経由で取得する。
       try {
-        const src = `https://github.com/${encodeURIComponent(data.owner)}.png?size=160`;
-        const blob = await fetch(src).then((r) => r.blob());
+        const src = `/api/proxy/gh-avatar?owner=${encodeURIComponent(data.owner)}`;
+        const blob = await fetch(src).then((r) => {
+          if (!r.ok) throw new Error("avatar fetch failed");
+          return r.blob();
+        });
         const reader = new FileReader();
         const dataUrl = await new Promise<string>((resolve, reject) => {
           reader.onload = (e) => resolve(e.target?.result as string);
