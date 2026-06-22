@@ -16,8 +16,27 @@ export default function ShareButton({ data }: { data: RepoData }) {
 
   async function copy() {
     let payload = data;
-    // アップロード画像(data URL)は共有用に縮小して載せる
-    if (data.avatar?.startsWith("data:")) {
+
+    if (data.useGithubAvatar && data.owner) {
+      // GitHub アバターを data URL に変換して埋め込む。
+      // こうすることで /api/og が runtime に GitHub へ fetch する必要がなくなり rate limit を回避できる。
+      try {
+        const src = `https://github.com/${encodeURIComponent(data.owner)}.png?size=160`;
+        const blob = await fetch(src).then((r) => r.blob());
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const shrunk = await shrinkForShare(dataUrl, PALETTES[data.theme].bg);
+        payload = { ...data, avatar: shrunk, useGithubAvatar: false };
+      } catch {
+        // 取得失敗時はアバターなしで共有
+        payload = { ...data, useGithubAvatar: false };
+      }
+    } else if (data.avatar?.startsWith("data:")) {
+      // アップロード画像(data URL)は共有用に縮小して載せる
       try {
         payload = { ...data, avatar: await shrinkForShare(data.avatar, PALETTES[data.theme].bg) };
       } catch {

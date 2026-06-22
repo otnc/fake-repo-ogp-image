@@ -4,6 +4,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { decodeShare } from "@/lib/share";
+import { SITE_URL } from "@/lib/site";
 
 type Props = { searchParams: Promise<{ d?: string }> };
 
@@ -12,7 +13,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const data = d ? decodeShare(d) : null;
   const title = data ? `${data.owner}/${data.repo}` : "GitHub OGP 風画像";
   const description = data?.description || "ブラウザだけで作る GitHub OGP 風画像";
-  const image = `/api/og${d ? `?d=${encodeURIComponent(d)}` : ""}`;
+  // クローラが相対 URL を解決できないケースがあるため、絶対 URL で指定する
+  const image = `${SITE_URL}/api/og${d ? `?d=${encodeURIComponent(d)}` : ""}`;
 
   return {
     title,

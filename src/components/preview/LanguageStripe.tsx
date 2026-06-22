@@ -3,13 +3,14 @@ import type { Palette } from "@/lib/theme";
 
 type Segment = { name: string; color: string; percent: number };
 
-// 言語一覧に「Others」(残り%)を足したセグメント配列を作る。
+// 言語一覧に「Others」(残り%)を足したセグメント配列を作る。% 降順にソートして Others を末尾に付ける。
 export function toSegments(
   languages: LanguageEntry[],
   othersColor: string,
 ): Segment[] {
-  const used = languages.reduce((s, l) => s + (l.percent || 0), 0);
-  const segments: Segment[] = languages
+  const sorted = [...languages].sort((a, b) => b.percent - a.percent);
+  const used = sorted.reduce((s, l) => s + (l.percent || 0), 0);
+  const segments: Segment[] = sorted
     .filter((l) => l.percent > 0)
     .map((l) => ({ name: l.name || "Unknown", color: l.color, percent: l.percent }));
   const rest = 100 - used;

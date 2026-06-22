@@ -1,5 +1,7 @@
 // GitHub の公開リポジトリから実データを取得して RepoData の一部を作る。
-// 認証なしの GitHub REST API (api.github.com) を使う (60 req/h・CORS 許可)。
+// 基本情報 (stars/forks/description): ungh.cc (非公式キャッシュ型プロキシ) を優先し、
+// 失敗時は公式 REST API にフォールバック。
+// 言語・コントリビューター・Issues は公式 API の別クォータを使用。
 import type { RepoData, LanguageEntry } from "./types";
 import { loadLanguages } from "./languages";
 
@@ -18,18 +20,66 @@ function gh(url: string): Promise<Response> {
   return fetch(url, { headers: { Accept: "application/vnd.github+json" } });
 }
 
-// owner/repo または URL からカードの内容を取得する。
-// Used by / Discussions は API で取れないので含めない (null = 非表示)。
-export async function importRepo(input: string): Promise<Partial<RepoData>> {
-  const parsed = parseRepoInput(input);
-  if (!parsed) throw new Error("owner/repo か GitHub の URL を入力してください");
-  const { owner, repo } = parsed;
+type RepoBasic = {
+  ownerLogin: string;
+  repoName: string;
+  description: string;
+  avatarUrl: string | null;
+  stars: number;
+  forks: number;
+  openIssuesCount: number;
+};
 
+// ungh.cc (非公式) → 公式 REST API の順で基本情報を取得。
+// ungh.cc は GitHub API レート制限を回避できるキャッシュ型プロキシ。
+async function fetchRepoBasic(owner: string, repo: string): Promise<RepoBasic> {
+  try {
+    const res = await fetch(`https://ungh.cc/repos/${owner}/${repo}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const { repo: r } = await res.json();
+      return {
+        ownerLogin: owner,
+        repoName: r.name ?? repo,
+        description: r.description ?? "",
+        // ungh.cc には avatar_url がないので GitHub のアバター URL を直接組む
+        avatarUrl: `https://github.com/${encodeURIComponent(owner)}.png`,
+        stars: r.stars ?? 0,
+        forks: r.forks ?? 0,
+        openIssuesCount: 0, // ungh.cc にはない。Issues は Search API で取得
+      };
+    }
+  } catch {
+    // タイムアウト・ネットワークエラー → 公式 API へフォールバック
+  }
+
+  // 公式 REST API (フォールバック)
   const res = await gh(`https://api.github.com/repos/${owner}/${repo}`);
   if (res.status === 404) throw new Error("リポジトリが見つかりません");
   if (res.status === 403) throw new Error("GitHub API のレート制限に達した可能性があります");
   if (!res.ok) throw new Error(`取得に失敗しました (${res.status})`);
   const r = await res.json();
+  return {
+    ownerLogin: r.owner?.login ?? owner,
+    repoName: r.name ?? repo,
+    description: r.description ?? "",
+    avatarUrl: r.owner?.avatar_url ?? null,
+    stars: r.stargazers_count ?? 0,
+    forks: r.forks_count ?? 0,
+    openIssuesCount: r.open_issues_count ?? 0,
+  };
+}
+
+// owner/repo または URL からカードの内容を取得する。
+// Used by / Discussions は API で取れないので含めない。
+export async function importRepo(input: string): Promise<Partial<RepoData>> {
+  const parsed = parseRepoInput(input);
+  if (!parsed) throw new Error("owner/repo か GitHub の URL を入力してください");
+  const { owner, repo } = parsed;
+
+  // 基本情報を先に取得してリポジトリ存在を確認してから他データを並列取得
+  const basic = await fetchRepoBasic(owner, repo);
 
   const [languages, contributors, counts] = await Promise.all([
     fetchLanguages(owner, repo),
@@ -37,39 +87,62 @@ export async function importRepo(input: string): Promise<Partial<RepoData>> {
     fetchIssuePrCounts(owner, repo),
   ]);
 
-  // 取れる値はすべて取得する。Used by / Discussions は公開 API で取れないため 0。
-  // hiddenStats は更新しないので、PR は既定どおり非表示のまま (値だけ入る)。
   return {
-    owner: r.owner?.login ?? owner,
-    repo: r.name ?? repo,
-    description: r.description ?? "",
-    avatar: r.owner?.avatar_url ?? null,
+    owner: basic.ownerLogin,
+    repo: basic.repoName,
+    description: basic.description,
+    avatar: basic.avatarUrl,
     useGithubAvatar: false,
     languages,
     contributors,
     usedBy: 0,
-    // Search が使えないときは open_issues_count (PR 込み) で代用
-    issues: counts.issues ?? r.open_issues_count ?? 0,
+    // Search API が取れた値を優先し、なければ公式 API のまとめカウントを使う
+    issues: counts.issues ?? basic.openIssuesCount,
     pullRequests: counts.pullRequests ?? 0,
     discussions: 0,
-    stars: r.stargazers_count ?? 0,
-    forks: r.forks_count ?? 0,
+    stars: basic.stars,
+    forks: basic.forks,
   };
 }
 
-// open の Issue / PR 件数を分けて取る (Search API)。失敗時は null。
+// open の Issue / PR 件数を GitHub HTML から取得 (API クォータ不使用)。
+// github.com のページに server-side render される tab カウンターを読む。
+// 失敗時は Search API にフォールバック。
 async function fetchIssuePrCounts(
   owner: string,
   repo: string,
 ): Promise<{ issues: number | null; pullRequests: number | null }> {
-  const count = async (type: "issue" | "pr"): Promise<number | null> => {
+  try {
+    const res = await fetch(`https://github.com/${owner}/${repo}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const parseTabCount = (id: string): number | null => {
+        const m = new RegExp(`id="${id}"[^>]*title="([\\d,]+)"`).exec(html);
+        return m ? parseInt(m[1].replace(/,/g, ""), 10) : null;
+      };
+      const issues = parseTabCount("issues-repo-tab-count");
+      const pullRequests = parseTabCount("pull-requests-repo-tab-count");
+      if (issues !== null || pullRequests !== null) return { issues, pullRequests };
+    }
+  } catch {
+    // フォールバックへ
+  }
+
+  // フォールバック: GitHub Search API (別クォータ 10 req/min)
+  const countViaSearch = async (type: "issue" | "pr"): Promise<number | null> => {
     const q = encodeURIComponent(`repo:${owner}/${repo} type:${type} state:open`);
-    const res = await gh(`https://api.github.com/search/issues?q=${q}&per_page=1`);
-    if (!res.ok) return null;
-    return (await res.json()).total_count ?? null;
+    const r = await gh(`https://api.github.com/search/issues?q=${q}&per_page=1`);
+    if (!r.ok) return null;
+    return (await r.json()).total_count ?? null;
   };
   try {
-    const [issues, pullRequests] = await Promise.all([count("issue"), count("pr")]);
+    const [issues, pullRequests] = await Promise.all([
+      countViaSearch("issue"),
+      countViaSearch("pr"),
+    ]);
     return { issues, pullRequests };
   } catch {
     return { issues: null, pullRequests: null };
