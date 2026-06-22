@@ -7,13 +7,23 @@ const IMG_MAX_W = 230;
 const IMG_MAX_H = 180;
 const ICON_SIZE = 150;
 
+// ブラウザでは GitHub avatar URL をプロキシ経由に変換。
+// html-to-image が fetch() で読む際の CORS エラーを回避するため。
+// サーバーサイド (Satori) では直接 URL のまま (github.com にアクセスできる)。
+function toImgSrc(src: string): string {
+  if (typeof window === "undefined") return src;
+  const m = src.match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\.png/);
+  if (m) return `/api/proxy/gh-avatar?owner=${encodeURIComponent(m[1])}`;
+  return src;
+}
+
 export default function AvatarVisual({ avatar }: { avatar: ResolvedAvatar }) {
   if (!avatar) return null;
 
   if (avatar.kind === "image") {
     return (
       <img
-        src={avatar.src}
+        src={toImgSrc(avatar.src)}
         alt=""
         style={{ maxWidth: IMG_MAX_W, maxHeight: IMG_MAX_H, objectFit: "contain" }}
       />
