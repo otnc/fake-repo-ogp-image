@@ -16,35 +16,28 @@ export default function ShareButton({ data }: { data: RepoData }) {
 
   async function copy() {
     let payload = data;
+    let dropped = false; // アバターを共有 URL に載せられなかったか
 
     if (data.useGithubAvatar && data.owner) {
-      // GitHub アバターを data URL に変換して埋め込む。
-      // ブラウザから github.com を直接 fetch すると CORS でブロックされるため、
-      // サーバーサイドプロキシ (/api/proxy/gh-avatar) 経由で取得する。
-      try {
-        const src = `/api/proxy/gh-avatar?owner=${encodeURIComponent(data.owner)}`;
-        const blob = await fetch(src).then((r) => {
-          if (!r.ok) throw new Error("avatar fetch failed");
-          return r.blob();
-        });
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        const shrunk = await shrinkForShare(dataUrl, PALETTES[data.theme].bg);
-        payload = { ...data, avatar: shrunk, useGithubAvatar: false };
-      } catch {
-        // 取得失敗時はアバターなしで共有
-        payload = { ...data, useGithubAvatar: false };
-      }
+      // GitHub アバターは owner 名だけ共有すれば /api/og がサーバーサイドで取得できる。
+      // data URL を埋め込むと二重 base64 で URL が肥大化するため載せない。
+      payload = { ...data, avatar: null };
     } else if (data.avatar?.startsWith("data:")) {
-      // アップロード画像(data URL)は共有用に縮小して載せる
-      try {
-        payload = { ...data, avatar: await shrinkForShare(data.avatar, PALETTES[data.theme].bg) };
-      } catch {
-        payload = { ...data, avatar: null };
+      // アップロード画像(data URL)は共有用に縮小して載せる。
+      // URL 上限に収まるまで段階的に小さくする (base64 の二重エンコードで膨らむため)
+      payload = { ...data, avatar: null };
+      dropped = true;
+      for (const max of [120, 96, 72]) {
+        try {
+          const shrunk = await shrinkForShare(data.avatar, PALETTES[data.theme].bg, max);
+          if (encodeShare({ ...data, avatar: shrunk }).length <= MAX_D) {
+            payload = { ...data, avatar: shrunk };
+            dropped = false;
+            break;
+          }
+        } catch {
+          break;
+        }
       }
     }
 
@@ -52,10 +45,9 @@ export default function ShareButton({ data }: { data: RepoData }) {
     // それでも長すぎる場合はアバターを諦める
     if (d.length > MAX_D && payload.avatar) {
       d = encodeShare({ ...payload, avatar: null });
-      setNote("画像が大きすぎるため、共有 URL にはアバターを含めませんでした");
-    } else {
-      setNote(null);
+      dropped = true;
     }
+    setNote(dropped ? "画像が大きすぎるため、共有 URL にはアバターを含めませんでした" : null);
 
     await navigator.clipboard.writeText(`${window.location.origin}/share?d=${d}`);
     setCopied(true);
