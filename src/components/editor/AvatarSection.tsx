@@ -56,7 +56,7 @@ export default function AvatarSection({
           <AvatarUploader value={data.avatar} onChange={(v) => update({ avatar: v })} />
           <Field label="アバター URL" hint="共有 URL ではこちらを使用 (例: https://github.com/octocat.png)">
             <TextInput
-              value={data.avatar && data.avatar.startsWith("http") ? data.avatar : ""}
+              value={data.avatar?.startsWith("data:") ? "" : (data.avatar ?? "")}
               placeholder="https://github.com/octocat.png"
               onChange={(e) => update({ avatar: e.target.value || null })}
             />

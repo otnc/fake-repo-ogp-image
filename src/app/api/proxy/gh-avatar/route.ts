@@ -10,7 +10,8 @@ export async function GET(req: Request) {
   if (!SAFE.test(owner)) return new Response(null, { status: 400 });
 
   try {
-    const res = await fetch(`https://github.com/${owner}.png?size=160`, {
+    // size=460: PNG 書き出しは高解像度 (pixelRatio 2) なので大きめに取る
+    const res = await fetch(`https://github.com/${owner}.png?size=460`, {
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return new Response(null, { status: 404 });

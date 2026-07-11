@@ -6,9 +6,9 @@ export function formatCount(n: number): string {
   return trim(n / 1_000_000) + "m";
 }
 
-// 10 未満なら小数 1 桁、それ以上は整数 (GitHub の表示に合わせる)
+// 10 未満なら小数 1 桁、それ以上は整数 (GitHub 同様に切り捨て。999,999 は "999k")
 function trim(v: number): string {
-  const s = v < 10 ? (Math.floor(v * 10) / 10).toFixed(1) : String(Math.round(v));
+  const s = v < 10 ? (Math.floor(v * 10) / 10).toFixed(1) : String(Math.floor(v));
   return s.replace(/\.0$/, "");
 }
 
