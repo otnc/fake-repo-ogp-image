@@ -3,9 +3,8 @@
 import type { ResolvedAvatar } from "@/lib/avatar";
 import { identicon } from "@/lib/identicon";
 
-const IMG_MAX_W = 230;
-const IMG_MAX_H = 180;
-const ICON_SIZE = 150;
+const AVATAR_SIZE = 150;
+const BORDER_RADIUS = 16;
 
 // ブラウザでは GitHub avatar URL をプロキシ経由に変換。
 // html-to-image が fetch() で読む際の CORS エラーを回避するため。
@@ -25,24 +24,31 @@ export default function AvatarVisual({ avatar }: { avatar: ResolvedAvatar }) {
       <img
         src={toImgSrc(avatar.src)}
         alt=""
-        style={{ maxWidth: IMG_MAX_W, maxHeight: IMG_MAX_H, objectFit: "contain" }}
+        style={{
+          width: AVATAR_SIZE,
+          height: AVATAR_SIZE,
+          objectFit: "cover",
+          borderRadius: BORDER_RADIUS,
+        }}
       />
     );
   }
 
   // identicon: 5x5 の色付きセルを薄灰の正方形に並べる
   const { cells, color } = identicon(avatar.seed);
-  const pad = Math.round(ICON_SIZE * 0.12);
+  const pad = Math.round(AVATAR_SIZE * 0.12);
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        width: ICON_SIZE,
-        height: ICON_SIZE,
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
         padding: pad,
         boxSizing: "border-box",
         background: "#f0f0f0",
+        borderRadius: BORDER_RADIUS,
+        overflow: "hidden",
       }}
     >
       {cells.map((row, y) => (
