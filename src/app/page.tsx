@@ -31,6 +31,12 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
+      <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+        <a href="https://www.npmjs.com/package/fake-repo-ogp-image" className="font-medium underline decoration-blue-300 underline-offset-4 hover:decoration-blue-700">
+          APIとCLIが登場しました✨️
+        </a>
+        <span className="ml-2">npmからインストールして使えます。</span>
+      </div>
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">
