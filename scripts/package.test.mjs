@@ -9,6 +9,31 @@ import { execFile } from "node:child_process";
 import { generateImage, createRepoData, createShareUrl, parseShareUrl, listLanguages, loadAvatar } from "../dist/index.js";
 import { build } from "tsup";
 
+test("API and CLI support pixel dimensions while preserving the card layout", async () => {
+  const options = { description: "" };
+  for (const [rendering, width, height] of [
+    [{ width: 1600, height: 900 }, 1600, 900],
+    [{ width: 901 }, 901, 451],
+    [{ height: 375 }, 750, 375],
+  ]) {
+    const png = await generateImage(options, rendering);
+    assert.equal(png.readUInt32BE(16), width);
+    assert.equal(png.readUInt32BE(20), height);
+  }
+  await assert.rejects(generateImage(options, { width: 0 }));
+  await assert.rejects(generateImage(options, { height: 8192 }));
+  await assert.rejects(generateImage(options, { width: 900, pixelRatio: 2 }), /Choose either/);
+
+  const directory = await mkdtemp(join(tmpdir(), "fake-repo-ogp-size-"));
+  try {
+    const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+    await promisify(execFile)(process.execPath, [cli, "--description", "", "--width", "1600", "--height", "900"], { cwd: directory });
+    assert.deepEqual(await readFile(join(directory, "og.png")), await generateImage(options, { width: 1600, height: 900 }));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("web handlers and package API generate identical PNGs", async () => {
   const directory = await mkdtemp(join(process.cwd(), ".verify-route-"));
   try {

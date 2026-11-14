@@ -23,6 +23,7 @@ export default function OgImage({ data }: { data: RepoData }) {
         position: "relative",
         width: OG_W,
         height: OG_H,
+        boxSizing: "border-box",
         background: p.bg,
         color: p.text,
         padding: "64px 72px 0 72px",

@@ -43,6 +43,8 @@ const main = async () => {
     .option("--hidden-stats <names>", "Comma-separated statistic keys; empty string shows all")
     .option("--list-languages [query]", "List standard language names and colors")
     .option("--pixel-ratio <number>", "Output scale from 1 to 4 (default: 2)", Number)
+    .option("--width <pixels>", "Output width in pixels; omit height to preserve the aspect ratio", Number)
+    .option("--height <pixels>", "Output height in pixels; omit width to preserve the aspect ratio", Number)
     .option("--share-url <origin>", "Print a share URL for the specified web editor origin")
     .option("--save-config <file>", "Save resolved card data as JSON")
     .option("-o, --output <file>", "PNG output path (default: og.png)")
@@ -57,7 +59,8 @@ const main = async () => {
   const controls = z.object({
     config: z.string().optional(), import: z.string().optional(), fromShare: z.string().optional(),
     output: z.string().default("og.png"), shareUrl: z.string().optional(), saveConfig: z.string().optional(),
-    pixelRatio: z.number().int().min(1).max(4).default(2), randomIdenticon: z.boolean().optional(),
+    pixelRatio: z.number().int().min(1).max(4).optional(), randomIdenticon: z.boolean().optional(),
+    width: z.number().optional(), height: z.number().optional(),
   }).parse(values);
   if (controls.import && controls.fromShare) throw new Error("Choose either --import or --from-share.");
   const base = controls.import ? await importRepo(controls.import) : controls.fromShare ? parseShareUrl(controls.fromShare) : {};
@@ -75,7 +78,7 @@ const main = async () => {
     const directory = values.avatar === undefined && controls.config ? dirname(resolve(controls.config)) : process.cwd();
     data.avatar = await loadAvatar(resolve(directory, data.avatar));
   }
-  const png = await generateImage(data, { pixelRatio: controls.pixelRatio });
+  const png = await generateImage(data, { pixelRatio: controls.pixelRatio, width: controls.width, height: controls.height });
   await writeFile(controls.output, png);
   if (controls.saveConfig) await writeFile(controls.saveConfig, `${JSON.stringify(data, null, 2)}\n`);
   if (controls.shareUrl) {

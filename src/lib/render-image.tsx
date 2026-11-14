@@ -1,7 +1,8 @@
-import { ImageResponse } from "@vercel/og";
+import satori from "satori";
 import sharp from "sharp";
 import { z } from "zod";
-import OgImage from "../components/preview/OgpCard";
+import OgImage, { OG_W, OG_H } from "../components/preview/OgpCard";
+import { PALETTES } from "./theme";
 import { createRepoData, type GenerateImageOptions } from "./repo-options";
 import { collectText, loadFonts } from "./og-fonts";
 import type { RepoData } from "./types";
@@ -31,16 +32,34 @@ export const resolveRemoteAvatar = async (data: RepoData) => {
 };
 
 /** Renders the shared card, with an integer pixel ratio from 1 through 4. */
-export const renderImage = async (options: GenerateImageOptions, fontDirectory: string, pixelRatio = 2) => {
+export const renderImage = async (
+  options: GenerateImageOptions,
+  fontDirectory: string,
+  pixelRatio = 2,
+  size?: { width: number; height: number },
+) => {
   const ratio = z.number().int().min(1).max(4).parse(pixelRatio);
   const data = await resolveRemoteAvatar(createRepoData(options));
   const fonts = await loadFonts(collectText([data.owner, data.repo, data.description]), fontDirectory);
   if (fonts.length < 2) throw new Error("Bundled fonts could not be loaded.");
-  const response = new ImageResponse(
-    <div style={{ display: "flex", width: 1200 * ratio, height: 600 * ratio }}>
-      <div style={{ display: "flex", transform: `scale(${ratio})`, transformOrigin: "top left" }}><OgImage data={data} /></div>
-    </div>,
-    { width: 1200 * ratio, height: 600 * ratio, fonts },
-  );
-  return Buffer.from(await response.arrayBuffer());
+  const svg = await satori(<OgImage data={data} />, {
+    width: OG_W,
+    height: OG_H,
+    fonts,
+    loadAdditionalAsset: async (language, segment) => {
+      if (language !== "emoji") return [];
+      const normalized = segment.includes("\u200d") ? segment : segment.replace(/\ufe0f/g, "");
+      const code = Array.from(normalized, (character) => character.codePointAt(0)!.toString(16)).join("-");
+      const response = await fetch(`https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${code}.svg`, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error(`Emoji image could not be loaded: ${code}`);
+      return `data:image/svg+xml;base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
+    },
+  });
+  if (!size) return sharp(Buffer.from(svg), { density: 72 * ratio }).png().toBuffer();
+
+  const scale = Math.min(size.width / OG_W, size.height / OG_H);
+  return sharp(Buffer.from(svg), { density: Math.max(1, 72 * scale) })
+    .resize(size.width, size.height, { fit: "contain", background: PALETTES[data.theme].bg })
+    .png()
+    .toBuffer();
 };

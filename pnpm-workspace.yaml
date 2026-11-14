@@ -1,3 +1,7 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Keep the application and Next.js on the same native Sharp/libvips version.
+overrides:
+  sharp: $sharp
