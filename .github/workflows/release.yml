@@ -32,10 +32,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm docs:check
+      - run: pnpm docs:verify
       - run: pnpm exec tsc --noEmit
       - run: pnpm build:package
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm test:web
       - name: Resolve version
         id: version
         env:

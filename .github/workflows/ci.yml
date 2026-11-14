@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [20, 22, 24]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -20,8 +20,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm docs:check
+      - run: pnpm docs:verify
       - run: pnpm exec tsc --noEmit
       - run: pnpm build:package
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm test:web
       - run: pnpm pack

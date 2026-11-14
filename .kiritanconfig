@@ -1,0 +1,8 @@
+import { defineConfig } from "kiritan";
+
+export default defineConfig({
+  locales: { default: "ja", list: ["ja", "en"] },
+  naming: { template: "{base}.{locale}.{ext}", omitDefaultLocaleSuffix: true },
+  markdown: { alertBlankLineSpaces: 3 },
+  sources: [{ glob: "base/*.base.md", strategy: "inline" }],
+});

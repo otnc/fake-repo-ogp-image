@@ -10,7 +10,7 @@ GitHub リポジトリの OGP 風画像を、Web、Node.js API、CLI から生�
 - Next.js 16 (App Router, `src/`, TypeScript) / React 19
 - Tailwind CSS v4 (`@import "tailwindcss"`、`tailwind.config` なし。**左カラム UI 専用**)
 - sharp … 画像ファイルの読み込み、向きの補正、共有用画像の縮小
-- @vercel/og (`ImageResponse` = Satori) … Web、API、CLI 共通の画像生成
+- satori / sharp … Web、API、CLI 共通の SVG レイアウトと PNG 生成
 - commander / jsonc-parser / zod … CLI、JSONC 設定、入力検証
 - パッケージマネージャは **pnpm**
 
@@ -92,3 +92,7 @@ URL を Discord 等に貼ると同じカードが OGP として表示される�
 
 - **Vercel** 想定。`metadataBase` は `NEXT_PUBLIC_SITE_URL` / `VERCEL_URL` から組む (`lib/site.ts`)。
   本番は `NEXT_PUBLIC_SITE_URL` に公開 URL を設定する。
+
+## ドキュメント管理
+
+README と CONTRIBUTING の原稿は `base/*.base.md`。Kiritan の既定言語は日本語で、英語版は `*.en.md` に生成する。原稿を変更したら `pnpm docs:build` と `pnpm docs:verify` を実行する。開発、Vercel デプロイ、CI、リリースの手順は CONTRIBUTING にまとめる。
