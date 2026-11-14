@@ -1,44 +1,47 @@
 import { fileURLToPath } from "node:url";
-import { ImageResponse } from "@vercel/og";
-import { z } from "zod";
-import OgImage, { OG_W, OG_H } from "../app/api/og/OgImage";
-import { collectText, loadFonts } from "../lib/og-fonts";
+import sharp from "sharp";
+import { renderImage } from "../lib/render-image";
+import { buildShareUrl } from "../lib/share-url";
+import { loadAvatar } from "./avatar-file";
+import type { GenerateImageOptions } from "../lib/repo-options";
 
-const count = z.number().int().nonnegative().safe().default(0);
-const stat = z.enum(["contributors", "usedBy", "issues", "pullRequests", "discussions", "stars", "forks"]);
-const optionsSchema = z.strictObject({
-  owner: z.string().min(1),
-  repo: z.string().min(1),
-  description: z.string().default(""),
-  theme: z.enum(["light", "dark"]).default("light"),
-  avatar: z.string().nullable().default(null),
-  useGithubAvatar: z.boolean().default(false),
-  avatarFallback: z.enum(["none", "identicon"]).default("none"),
-  identiconSeed: z.number().int().default(1),
-  languages: z.array(z.strictObject({
-    id: z.string(), name: z.string(), color: z.string().regex(/^#[\da-f]{6}$/i),
-    percent: z.number().min(0).max(100),
-  })).default([]),
-  othersColor: z.string().regex(/^#[\da-f]{6}$/i).default("#ededed"),
-  contributors: count, usedBy: count, issues: count, pullRequests: count,
-  discussions: count, stars: count, forks: count,
-  hiddenStats: z.array(stat).default(["usedBy", "pullRequests", "discussions"]),
+export { createRepoData } from "../lib/repo-options";
+export type { GenerateImageOptions } from "../lib/repo-options";
+export type { RepoData, LanguageEntry, Theme, StatKey } from "../lib/types";
+export { listLanguages, languageColor } from "../lib/languages";
+export { importRepo, parseRepoInput } from "../lib/github";
+export { encodeShare, decodeShare } from "../lib/share";
+export { parseShareUrl } from "../lib/share-url";
+export { loadAvatar } from "./avatar-file";
+export { createIdenticonSeed } from "../lib/identicon";
+
+const withLocalAvatar = async (options: GenerateImageOptions) => ({
+  ...options,
+  avatar: options.avatar && !/^(https?:|data:image\/)/.test(options.avatar) ? await loadAvatar(options.avatar) : options.avatar,
 });
 
-/** Options for a 1200 × 600 PNG. Only owner and repo are required. */
-export type GenerateImageOptions = z.input<typeof optionsSchema>;
+/**
+ * Generates a PNG using the same renderer as web previews and downloads.
+ * Defaults to 2400 × 1200. Set pixelRatio to 1 for 1200 × 600; ratios 1–4 are supported.
+ * Rejects invalid settings or rendering failures. Remote avatars and Japanese fonts require network access.
+ * @example
+ * await writeFile("og.png", await generateImage({ owner: "octocat", repo: "hello-world" }));
+ */
+export const generateImage = async (options: GenerateImageOptions = {}, rendering: { pixelRatio?: number } = {}) =>
+  renderImage(await withLocalAvatar(options), fileURLToPath(new URL("./fonts/", import.meta.url)), rendering.pixelRatio);
 
 /**
- * Generates PNG bytes using the shared repository card renderer.
- * Rejects invalid options and rendering failures. Non-ASCII fonts and remote avatars require network access.
+ * Creates a web share URL, compressing embedded avatars and reporting omissions.
+ * baseUrl is the deployed web editor origin. Rejects invalid settings or oversized text.
  * @example
- * const png = await generateImage({ owner: "octocat", repo: "hello-world", stars: 1200 });
- * await writeFile("og.png", png);
+ * const { url, avatarDropped } = await createShareUrl({ owner: "octocat" }, "https://example.com");
  */
-export const generateImage = async (options: GenerateImageOptions) => {
-  const data = optionsSchema.parse(options);
-  const fonts = await loadFonts(collectText([data.owner, data.repo, data.description]), fileURLToPath(new URL("./fonts/", import.meta.url)));
-  if (fonts.length < 2) throw new Error("Bundled fonts could not be loaded.");
-  const response = new ImageResponse(<OgImage data={data} />, { width: OG_W, height: OG_H, fonts });
-  return Buffer.from(await response.arrayBuffer());
-};
+export const createShareUrl = async (options: GenerateImageOptions, baseUrl: string) =>
+  buildShareUrl(await withLocalAvatar(options), baseUrl, async (source, background, size) => {
+    const response = await fetch(source);
+    const bytes = await response.arrayBuffer();
+    const image = await sharp(Buffer.from(bytes))
+      .rotate().resize(size, size, { fit: "inside", withoutEnlargement: true })
+      .flatten({ background }).jpeg({ quality: 82 }).toBuffer();
+    return `data:image/jpeg;base64,${image.toString("base64")}`;
+  });

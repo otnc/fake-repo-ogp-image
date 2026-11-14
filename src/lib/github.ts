@@ -4,6 +4,7 @@
 // 言語・コントリビューター・Issues は公式 API の別クォータを使用。
 import type { RepoData, LanguageEntry } from "./types";
 import { loadLanguages } from "./languages";
+import { fetchGithubCounts } from "./github-counts";
 
 // "owner/repo" でも GitHub URL でも owner/repo を取り出す
 export function parseRepoInput(input: string): { owner: string; repo: string } | null {
@@ -114,14 +115,12 @@ async function fetchIssuePrCounts(
   repo: string,
 ): Promise<{ issues: number | null; pullRequests: number | null }> {
   try {
-    const url = `/api/proxy/gh-counts?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.issues !== null || data.pullRequests !== null) return data;
-    }
+    const counts = typeof window === "undefined"
+      ? await fetchGithubCounts(owner, repo)
+      : await fetch(`/api/proxy/gh-counts?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`, { signal: AbortSignal.timeout(8000) }).then((response) => response.json());
+    if (counts.issues !== null || counts.pullRequests !== null) return counts;
   } catch {
-    // フォールバックへ
+    // Continue with GitHub Search when repository navigation counts are unavailable.
   }
 
   // フォールバック: GitHub Search API (別クォータ 10 req/min)

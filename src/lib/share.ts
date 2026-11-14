@@ -1,5 +1,5 @@
 // 共有用に RepoData を URL クエリ (?d=) へエンコード/デコードする。
-// アバターは http(s) URL のみ載せる (data URL は長すぎるため共有不可)。
+// Embedded images are compressed by the shared URL builder before encoding.
 import type { RepoData, LanguageEntry, Theme, StatKey } from "./types";
 
 // --- UTF-8 対応の base64url (ブラウザ / Node / Edge 共通) ---
@@ -54,13 +54,13 @@ function normalize(o: Record<string, unknown>): RepoData {
     : STAT_KEYS.filter((k) => o[k] === null || o[k] === undefined);
 
   const languages: LanguageEntry[] = Array.isArray(o.languages)
-    ? (o.languages as unknown[]).slice(0, 12).map((l, i) => {
+    ? (o.languages as unknown[]).map((l, i) => {
         const e = (l ?? {}) as Record<string, unknown>;
         return {
           id: str(e.id, String(i)),
           name: str(e.name),
           color: str(e.color, "#cccccc"),
-          percent: Math.max(0, Math.min(100, num(e.percent))),
+          percent: Math.max(0, num(e.percent)),
         };
       })
     : [];

@@ -1,46 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useState } from "react";
 import type { RepoData } from "@/lib/types";
-import OgpCard, { CARD_W, CARD_H } from "./OgpCard";
+import { fetchCardImage } from "@/lib/fetch-card-image";
 
-// 実寸 1200x600 のカードを、コンテナ幅に合わせて縮小表示する (スマホ対応)。
-// cardRef は縮小していない実寸ノードに付けて、PNG 書き出しに使う。
-const MAX_SCALE = 0.5; // デスクトップでは 0.5 倍 (600x300) を上限にする
-
-export default function Preview({
-  data,
-  cardRef,
-}: {
-  data: RepoData;
-  cardRef: RefObject<HTMLDivElement | null>;
-}) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(MAX_SCALE);
-
-  // コンテナ幅に追従して倍率を決める
+export default function Preview({ data }: { data: RepoData }) {
+  const [image, setImage] = useState<string>();
+  const [error, setError] = useState<string>();
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const update = () => setScale(Math.min(MAX_SCALE, el.clientWidth / CARD_W));
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  return (
-    <div ref={wrapRef} className="w-full overflow-hidden">
-      <div
-        className="overflow-hidden rounded-xl border border-neutral-300 shadow-sm"
-        style={{ width: CARD_W * scale, height: CARD_H * scale }}
-      >
-        <div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>
-          <div ref={cardRef}>
-            <OgpCard data={data} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetchCardImage(data, 1, controller.signal).then((blob) => {
+        if (controller.signal.aborted) return;
+        const url = URL.createObjectURL(blob);
+        setImage(url);
+        setError(undefined);
+      }).catch((error: unknown) => {
+        if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Image generation failed.");
+      });
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [data]);
+  useEffect(() => () => {
+    if (image) URL.revokeObjectURL(image);
+  }, [image]);
+  return <div className="w-full max-w-[600px]">
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    {image ? <img src={image} alt="Repository card preview" width={1200} height={600} className="w-full rounded-xl border border-neutral-300 shadow-sm" /> : <div className="aspect-[2/1] rounded-xl border border-neutral-300" />}
+    {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
+  </div>;
 }

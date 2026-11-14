@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@vercel/og": "^0.8.5",
+    "commander": "^14.0.3",
+    "jsonc-parser": "^3.3.1",
     "react": "19.2.4",
+    "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -22,7 +25,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "html-to-image": "^1.11.13",
     "next": "16.2.9",
     "react-dom": "19.2.4",
     "semver": "^7.8.6",
@@ -46,7 +48,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.9.0"
   },
   "packageManager": "pnpm@10.34.5",
   "description": "Generate GitHub-style repository OGP images with a Node.js API and CLI",

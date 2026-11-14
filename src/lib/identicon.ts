@@ -42,3 +42,6 @@ export function identicon(seed: string): Identicon {
   }
   return { cells, color };
 }
+
+/** Returns a fresh seed for the shared identicon renderer. */
+export const createIdenticonSeed = () => Math.floor(Math.random() * 1e9);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { RepoData } from "@/lib/types";
 import { decodeShare } from "@/lib/share";
 import Editor from "@/components/editor/Editor";
@@ -8,32 +8,10 @@ import Preview from "@/components/preview/Preview";
 import DownloadButton from "@/components/DownloadButton";
 import ShareButton from "@/components/ShareButton";
 
-// 初期表示 / リセット時のデフォルト値
-const INITIAL: RepoData = {
-  avatar: null,
-  useGithubAvatar: false,
-  avatarFallback: "identicon", // 画像未指定時はランダムアイコン
-  identiconSeed: 1,
-  owner: "octocat",
-  repo: "hello-world",
-  description: "My first repository on GitHub!",
-  languages: [],
-  othersColor: "#ededed",
-  // 値はすべて 0。デフォルト表示は Contributors / Issues / Stars / Forks
-  contributors: 0,
-  usedBy: 0,
-  issues: 0,
-  pullRequests: 0,
-  discussions: 0,
-  stars: 0,
-  forks: 0,
-  hiddenStats: ["usedBy", "pullRequests", "discussions"],
-  theme: "light",
-};
+import { INITIAL } from "@/lib/repo-options";
 
 export default function Home() {
   const [data, setData] = useState<RepoData>(INITIAL);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   // 共有 URL (?d=) で開かれたら復元する。SSR と一致させるため初回マウント後に行う
   useEffect(() => {
@@ -59,7 +37,7 @@ export default function Home() {
             GitHub OGP 風画像ジェネレーター
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
-            すべてブラウザ内で生成します。値を入力して PNG をダウンロードできます。
+            値を入力してプレビューを確認し、PNG をダウンロードできます。
           </p>
         </div>
         <button
@@ -77,10 +55,10 @@ export default function Home() {
         {/* 右: プレビュー + ダウンロード (スクロール追従) */}
         <div className="lg:sticky lg:top-10 lg:self-start">
           <div className="space-y-4">
-            <Preview data={data} cardRef={cardRef} />
+            <Preview data={data} />
             <div className="flex flex-wrap items-start gap-3">
               <DownloadButton
-                cardRef={cardRef}
+                data={data}
                 filename={`${data.owner || "owner"}-${data.repo || "repo"}`}
               />
               <ShareButton data={data} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createIdenticonSeed } from "@/lib/identicon";
 import type { RepoData } from "@/lib/types";
 import { useGithubAvatarExists } from "@/lib/useGithubAvatar";
 import { Field, TextInput } from "./Field";
@@ -79,7 +80,7 @@ export default function AvatarSection({
                 />
                 {data.avatarFallback === "identicon" && (
                   <button
-                    onClick={() => update({ identiconSeed: Math.floor(Math.random() * 1e9) })}
+                    onClick={() => update({ identiconSeed: createIdenticonSeed() })}
                     className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100"
                   >
                     別のアイコン

@@ -1,33 +1,28 @@
 "use client";
 
-import { useState, type RefObject } from "react";
-import { toPng } from "html-to-image";
+import { useState } from "react";
+import { fetchCardImage } from "@/lib/fetch-card-image";
+import type { RepoData } from "@/lib/types";
 
-// プレビューカードの実寸ノードを PNG にして保存する (すべてブラウザ内で完結)
+// Downloads the shared renderer output at twice the card resolution.
 export default function DownloadButton({
-  cardRef,
+  data,
   filename,
 }: {
-  cardRef: RefObject<HTMLDivElement | null>;
+  data: RepoData;
   filename: string;
 }) {
   const [busy, setBusy] = useState(false);
 
   async function handleDownload() {
-    if (!cardRef.current) return;
     setBusy(true);
     try {
-      // pixelRatio: 2 で高解像度 (2400x1200) に書き出す
-      const dataUrl = await toPng(cardRef.current, {
-        width: 1200,
-        height: 600,
-        pixelRatio: 2,
-        cacheBust: true,
-      });
+      const dataUrl = URL.createObjectURL(await fetchCardImage(data, 2));
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = `${filename || "ogp"}.png`;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(dataUrl), 1000);
     } catch (e) {
       console.error(e);
       alert("画像の生成に失敗しました");
