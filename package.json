@@ -1,18 +1,19 @@
 {
   "name": "fake-repo-ogp-image",
   "version": "0.1.0",
-  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:package": "tsup && node scripts/copy-fonts.mjs",
+    "prepack": "pnpm build:package",
+    "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
-    "html-to-image": "^1.11.13",
-    "next": "16.2.9",
+    "@vercel/og": "^0.8.5",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -21,7 +22,40 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "html-to-image": "^1.11.13",
+    "next": "16.2.9",
+    "react-dom": "19.2.4",
+    "semver": "^7.8.6",
     "tailwindcss": "^4",
+    "tsup": "^9.0.0",
     "typescript": "^5"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "fake-repo-ogp-image": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "description": "Generate GitHub-style repository OGP images with a Node.js API and CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otnc/fake-repo-ogp-image.git"
+  },
+  "homepage": "https://github.com/otnc/fake-repo-ogp-image#readme",
+  "bugs": {
+    "url": "https://github.com/otnc/fake-repo-ogp-image/issues"
   }
 }

@@ -16,10 +16,10 @@ export function collectText(parts: string[]): string {
 }
 
 // Arimo はプロジェクト同梱の TTF を読む。外部 fetch が不要なので確実に取得できる。
-async function readArimo(weight: 400 | 700): Promise<Font | null> {
+async function readArimo(weight: 400 | 700, directory: string): Promise<Font | null> {
   try {
     const name = weight === 700 ? "Arimo-Bold.ttf" : "Arimo-Regular.ttf";
-    const p = path.join(process.cwd(), "src", "lib", "fonts", name);
+    const p = path.join(directory, name);
     const buf = await fs.readFile(p);
     return {
       name: "Arimo",
@@ -53,8 +53,8 @@ function hasNonAscii(text: string): boolean {
 
 // Arimo + (日本語あれば Noto Sans JP) を返す。
 // Arimo は同梱 TTF なので確実。Noto Sans JP は失敗しても Arimo があれば Latin は描画できる。
-export async function loadFonts(text: string): Promise<Font[]> {
-  const reqs: Promise<Font | null>[] = [readArimo(400), readArimo(700)];
+export async function loadFonts(text: string, directory = path.join(process.cwd(), "src", "lib", "fonts")): Promise<Font[]> {
+  const reqs: Promise<Font | null>[] = [readArimo(400, directory), readArimo(700, directory)];
   if (hasNonAscii(text)) {
     reqs.push(fetchNotoSansJP(text, 400), fetchNotoSansJP(text, 700));
   }

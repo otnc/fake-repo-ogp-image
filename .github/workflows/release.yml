@@ -1,0 +1,84 @@
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'patch/minor/major/prerelease or an explicit version (same version retries)'
+        required: true
+        default: patch
+      preid:
+        description: 'Prerelease identifier, such as beta or rc'
+        default: ''
+      dist_tag:
+        description: 'npm dist-tag (empty selects the prerelease identifier or latest)'
+        default: ''
+permissions:
+  contents: write
+  id-token: write
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm build:package
+      - run: pnpm test
+      - run: pnpm build
+      - name: Resolve version
+        id: version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          PREID: ${{ inputs.preid }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: node scripts/prepare-release.mjs
+      - name: Commit and tag release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add package.json
+          if ! git diff --cached --quiet; then git commit -m "release: $TAG"; fi
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            test "$(git rev-list -n 1 "$TAG")" = "$(git rev-parse HEAD)"
+          else
+            git tag "$TAG"
+          fi
+          git push --atomic origin "HEAD:${GITHUB_REF_NAME}" "$TAG"
+      - run: npm install -g npm@11
+      - name: Publish package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DIST_TAG: ${{ steps.version.outputs.npm_tag }}
+        run: |
+          if npm view "fake-repo-ogp-image@$VERSION" version --json > published.json 2> npm-error.log; then
+            echo "Version already published."
+          elif grep -q 'E404' npm-error.log; then
+            npm publish --access public --provenance --tag "$DIST_TAG"
+          else
+            cat npm-error.log >&2
+            exit 1
+          fi
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            flags=()
+            if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes "${flags[@]}"
+          fi
